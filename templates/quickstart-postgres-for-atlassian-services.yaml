@@ -15,8 +15,21 @@
 # DBAllocatedStorageEncrypted
 # DBStorageType
 AWSTemplateFormatVersion: 2010-09-09
-Description: RDS Postgres Database for use in Atlassian Standard Infrastructure (qs-1aj6s44e4)
+Description: RDS Postgres/MySQL Database for use in Atlassian Standard Infrastructure (qs-1aj6s44e4)
 Parameters:
+  DBEngine:
+    Description: "Database Engine, MySQL or PostgreSQL"
+    Type: String
+    ConstraintDescription: "Choose an engine from the drop down"
+    AllowedValues: 
+      - "mysql-5.5"
+      - "mysql-5.6"
+      - "mysql-5.7"
+      - "mysql-8.0"
+      - "postgres-9.6"
+      - "postgres-10"
+      - "postgres-11"
+    Default: "mysql-5.7"
   DBEngineVersion:
     Default: 9.6
     AllowedValues:
@@ -84,7 +97,7 @@ Parameters:
   DBMasterUsername:
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
     ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
-    Default: postgres
+    Default: master
     Description: The database admin account username
     MaxLength: '16'
     MinLength: '1'
@@ -95,7 +108,7 @@ Parameters:
             ^(?=^.{8,255}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)((?=.*[^A-Za-z0-9])(?!.*[@/"'])).*$
     ConstraintDescription: >-
             Min 8 chars. Must include 1 uppercase, 1 lowercase, 1 number, 1 (non / @ " ') symbol
-    Description: Password for the master ('postgres') account.
+    Description: Password for the master account.
     MinLength: 8
     MaxLength: 128
     NoEcho: true
@@ -137,17 +150,42 @@ Parameters:
     Description: Private Subnet 2 ID
     Type: AWS::EC2::Subnet::Id
 
+Mappings:
+  EngineMap:
+    'mysql-5.5':
+      Engine: 'mysql'
+      EngineVersion: '5.5'
+    'mysql-5.6':
+      Engine: 'mysql'
+      EngineVersion: '5.6'
+    'mysql-5.7':
+      Engine: 'mysql'
+      EngineVersion: '5.7'
+    'mysql-8.0':
+      Engine: 'mysql'
+      EngineVersion: '8.0'
+    'postgres-9.6':
+      Engine: 'postgres'
+      EngineVersion: '9.6'
+    'postgres-10':
+      Engine: 'postgres'
+      EngineVersion: '10'
+    'postgres-11':
+      Engine: 'postgres'
+      EngineVersion: '11'
+
 Conditions:
   DBProvisionedIops:
     !Equals [!Ref DBStorageType, io1]
   UseDatabaseEncryption:
     !Equals [!Ref DBAllocatedStorageEncrypted, true]
+  HasEngineMySQL: !Equals [!FindInMap [EngineMap, !Ref DBEngine, Engine], 'mysql']
 
 Resources:
   DBSubnetGroup: 
     Type: "AWS::RDS::DBSubnetGroup"
     Properties: 
-      DBSubnetGroupDescription: "Subnets available for the Postgres database instance"
+      DBSubnetGroupDescription: "Subnets available for the Postgres/MySQL database instance"
       SubnetIds: 
        - !Ref Subnet1ID
        - !Ref Subnet2ID
@@ -232,8 +270,8 @@ Resources:
       DBInstanceClass: !Ref DBInstanceClass
       DBInstanceIdentifier: !GetAtt DbInstanceName.DBInstanceName
       DBSubnetGroupName: !Ref DBSubnetGroup
-      Engine: postgres
-      EngineVersion: !Ref DBEngineVersion
+      Engine: !FindInMap [EngineMap, !Ref DBEngine, Engine]
+      EngineVersion: !FindInMap [EngineMap, !Ref DBEngine, EngineVersion]
       Iops: !If [DBProvisionedIops, !Ref DBIops, !Ref 'AWS::NoValue']
       KmsKeyId: !If [UseDatabaseEncryption, !GetAtt EncryptionKey.Arn, !Ref 'AWS::NoValue']
       MasterUsername: !Ref DBMasterUsername
@@ -243,7 +281,7 @@ Resources:
       StorageType: !If [DBProvisionedIops, io1, gp2]
       Tags:
         - Key: Name
-          Value: !Sub ["${StackName} PostgreSQL Database", StackName: !Ref 'AWS::StackName']
+          Value: !Sub ["${StackName} Database", StackName: !Ref 'AWS::StackName']
         # NOTE: The leading COMMIT/TIMESTAMP are used to locate the position to update; see scripts/update-tags.py
         - Key: "atl:quickstart:commit-id"
           Value: "COMMIT: 343e943a20f6c3c4ca3cbd289cf903905528b98a"
