@@ -331,14 +331,35 @@ Resources:
 Outputs:
   RDSEndPointAddress:
     Description: The Database Connection String
-    Value: !If [UseAurora, !GetAtt AuroraDatabase.Outputs.RDSEndPointAddress, !GetAtt PostgresDatabase.Outputs.RDSEndPointAddress]
+    Value: 
+      !If 
+        - UseAurora
+        - !GetAtt AuroraDatabase.Outputs.RDSEndPointAddress
+        - !If 
+            - UsePostgres
+            - !GetAtt PostgresDatabase.Outputs.RDSEndPointAddress
+            - !GetAtt MySQLDatabase.Outputs.RDSEndPointAddress
   RDSEndPointPort:
     Description: The port the DB endpoint listens on
-    Value: !If [UseAurora, !GetAtt AuroraDatabase.Outputs.RDSEndPointPort, !GetAtt PostgresDatabase.Outputs.RDSEndPointPort]
+    Value: 
+      !If
+        - UseAurora
+        - !GetAtt AuroraDatabase.Outputs.RDSEndPointPort
+        - !If 
+          - UsePostgres
+          - !GetAtt PostgresDatabase.Outputs.RDSEndPointPort
+          - !GetAtt MySQLDatabase.Outputs.RDSEndPointPort
   RDSEncryptionKey:
     Condition: UseDatabaseEncryption
     Description: The alias of the encryption key created for RDS
-    Value: !If [UseAurora, !GetAtt AuroraDatabase.Outputs.RDSEncryptionKey, !GetAtt PostgresDatabase.Outputs.RDSEncryptionKey]
+    Value: 
+      !If 
+        - UseAurora
+        - !GetAtt AuroraDatabase.Outputs.RDSEncryptionKey
+        - !If
+            - UsePostgres
+            - !GetAtt PostgresDatabase.Outputs.RDSEncryptionKey
+            - !GetAtt MySQLDatabase.Outputs.RDSEncryptionKey
   AuroraTemplateURL:
     Condition: UseAurora
     Description: The URL used to source the Aurora Stack template
@@ -354,6 +375,20 @@ Outputs:
   PostgresTemplateURL:
     Condition: UsePostgres
     Description: The URL used to source the PostgreSQL Stack template
+    Value: !If
+      - NoBucketRegionSupplied
+      - !Sub
+        #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
+      - !Sub
+        #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
+          S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
+  MySQLTemplateURL:
+    Condition: UseMySQL
+    Description: The URL used to source the MySQL Stack template
     Value: !If
       - NoBucketRegionSupplied
       - !Sub
