@@ -300,7 +300,7 @@ Resources:
             S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
       Parameters:
         CustomDBSecurityGroup: !Ref DBSecurityGroup
-        DBEngine: !FindInMap [EngineMap, PostgreSQL, !Ref DBEngineVersion]
+        DBEngine: !FindInMap [EngineMap, MySQL, !Ref DBEngineVersion]
         DBEngineVersion: !FindInMap [SemanticDBVersions, MySQL, !Ref DBEngineVersion]
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
