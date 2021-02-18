@@ -10,7 +10,8 @@ Parameters:
     AllowedValues:
       - 'Amazon Aurora PostgreSQL'
       - 'PostgreSQL'
-    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL'.
+      - 'MySQL'
+    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL' or 'MySQL'
     Type: String
   DBEngineVersion:
     Default: 9
@@ -18,6 +19,8 @@ Parameters:
       - 9
       - 10
       - 11
+      - 5
+      - 8
     Description: "The database engine version to use. We'll install a supported minor version that's suitable for your chosen engine"
     Type: String
   DBSecurityGroup:
@@ -91,7 +94,7 @@ Parameters:
     NoEcho: true
     Type: String
   DBMultiAZ:
-    Description: When DBEngine is 'PostgreSQL', this will determine whether to provision a multi-AZ RDS instance. When DBEngine is 'Amazon Aurora PostgreSQL', this will determine whether to provision a single or a multi node Amazon Aurora cluster.
+    Description: When DBEngine is 'PostgreSQL'/'MySQL', this will determine whether to provision a multi-AZ RDS instance. When DBEngine is 'Amazon Aurora PostgreSQL', this will determine whether to provision a single or a multi node Amazon Aurora cluster.
     Default: true
     AllowedValues:
       - true
@@ -154,6 +157,8 @@ Conditions:
     !Equals [!Ref DatabaseImplementation, 'Amazon Aurora PostgreSQL']
   UsePostgres:
     !Equals [!Ref DatabaseImplementation, 'PostgreSQL']
+  UseMySQL:
+    !Equals [!Ref DatabaseImplementation, 'MySQL']
   UsingDefaultBucket:
     !Equals [!Ref QSS3BucketName, 'aws-quickstart']
   UseDatabaseEncryption:
@@ -161,7 +166,7 @@ Conditions:
   NoBucketRegionSupplied:
     !Equals [!Ref QSS3BucketRegion, '']
 
-Mappings:    
+Mappings:
   # Supported semantic version mappings taken from:
   # https://confluence.atlassian.com/adminjiraserver/supported-platforms-938846830.html
   SemanticDBVersions:
@@ -173,7 +178,17 @@ Mappings:
       "9": "9.6.12"
       "10": "10.7"
       "11": "11.4"
-
+    MySQL:
+      "5": "5.7"
+      "8": "8.0"
+  EngineMap:
+    PostgreSQL:
+      "9": "postgres-9.6"
+      "10": "postgres-10"
+      "11": "postgres-11"
+    MySQL:
+      "5": "mysql-5.7"
+      "8": "mysql-8.0"
 Resources:
   AuroraDatabase:
     Type: AWS::CloudFormation::Stack
@@ -228,14 +243,17 @@ Resources:
         # Maintain backward compatibility for non-region support
         - NoBucketRegionSupplied
         - !Sub
-          - https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
           - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
         - !Sub
-          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
           - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
             S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
       Parameters:
         CustomDBSecurityGroup: !Ref DBSecurityGroup
+        DBEngine: !FindInMap [EngineMap, PostgreSQL, !Ref DBEngineVersion]
         DBEngineVersion: !FindInMap [SemanticDBVersions, PostgreSQL, !Ref DBEngineVersion]
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
@@ -264,9 +282,52 @@ Resources:
         - Key: "atl:quickstart:timestamp"
           Value: "TIMESTAMP: 2020-07-30T01:36:47Z"
 
-  MysqlDatabase:
-
-
+  MySQLDatabase:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseMySQL
+    Properties:
+      TemplateURL: !If
+        # Maintain backward compatibility for non-region support
+        - NoBucketRegionSupplied
+        - !Sub
+          #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
+        - !Sub
+          #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
+            S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
+      Parameters:
+        CustomDBSecurityGroup: !Ref DBSecurityGroup
+        DBEngine: !FindInMap [EngineMap, PostgreSQL, !Ref DBEngineVersion]
+        DBEngineVersion: !FindInMap [SemanticDBVersions, MySQL, !Ref DBEngineVersion]
+        DBAllocatedStorage: !Ref DBAllocatedStorage
+        DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
+        DBAutoMinorVersionUpgrade: !Ref DBAutoMinorVersionUpgrade
+        DBBackupRetentionPeriod: !Ref DBBackupRetentionPeriod
+        DBInstanceClass: !Ref DBInstanceClass
+        DBIops: !Ref DBIops
+        DBMasterUsername: master
+        DBMasterUserPassword: !Ref DBMasterUserPassword
+        DBMultiAZ: !Ref DBMultiAZ
+        DBStorageType: !Ref DBStorageType
+        Subnet1ID: !Select
+          - 0
+          - !Split
+            - ","
+            - Fn::ImportValue: !Sub "${ExportPrefix}PriNets"
+        Subnet2ID: !Select
+          - 1
+          - !Split
+            - ","
+            - Fn::ImportValue: !Sub "${ExportPrefix}PriNets"
+      Tags:
+        # NOTE: The leading COMMIT/TIMESTAMP are used to locate the position to update; see scripts/update-tags.py
+        - Key: "atl:quickstart:commit-id"
+          Value: "COMMIT: 343e943a20f6c3c4ca3cbd289cf903905528b98a"
+        - Key: "atl:quickstart:timestamp"
+          Value: "TIMESTAMP: 2020-07-30T01:36:47Z"
 Outputs:
   RDSEndPointAddress:
     Description: The Database Connection String
@@ -296,9 +357,11 @@ Outputs:
     Value: !If
       - NoBucketRegionSupplied
       - !Sub
-        - https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
         - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       - !Sub
-        - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
         - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
           S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]

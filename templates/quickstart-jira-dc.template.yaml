@@ -330,11 +330,12 @@ Parameters:
     Type: String
   DBEngine:
     Default: 'PostgreSQL'
-    Description: 'Database Engine to use for the application. PostgreSQL or Amazon Aurora PostgreSQL'
+    Description: 'Database Engine to use for the application. MySQL, PostgreSQL or Amazon Aurora PostgreSQL'
     AllowedValues:
       - 'PostgreSQL'
       - 'Amazon Aurora PostgreSQL'
-    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL'.
+      - 'MySQL'
+    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL' or 'MySQL'
     Type: String
   DBEngineVersion:
     Default: 9
@@ -342,6 +343,8 @@ Parameters:
       - 9
       - 10
       - 11
+      - 5
+      - 8
     Description: "The database engine version to use; we'll install a suitable minor version for your chosen engine. Make sure that the Jira version you're installing supports the database engine selected. Check https://confluence.atlassian.com/x/bqr1Nw to verify this."
     Type: String
   DBInstanceClass:
@@ -658,6 +661,12 @@ Conditions:
     !Equals [!Ref DBEngine, "Amazon Aurora PostgreSQL"]
   DBEnginePostgres:
     !Equals [!Ref DBEngine, "PostgreSQL"]
+  DBEngineMySQL:
+    !Equals [!Ref DBEngine, "MySQL"]
+  UsePostgreSQL:
+    !Not [!Equals [!Ref DBEngine, "MySQL"]]
+  UseMySQL:
+    !Equals [!Ref DBEngine, "MySQL"]
   UseBastionHost: !And
     - !Equals [!Ref BastionHostRequired, true]
     - !Condition KeyProvided
@@ -1052,7 +1061,11 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       DesiredCapacity: !Ref ClusterNodeMin
-      LaunchConfigurationName: !Ref ClusterNodeLaunchConfig
+      LaunchConfigurationName: 
+        !If 
+        - UsePostgreSQL
+        - !Ref ClusterNodeLaunchConfigWithPostgreSQL
+        - !Ref ClusterNodeLaunchConfigWithMySQL
       MaxSize: !Ref ClusterNodeMax
       MinSize: !Ref ClusterNodeMin
       TargetGroupARNs: [!Ref MainTargetGroup]
@@ -1074,8 +1087,9 @@ Resources:
           Value: "TIMESTAMP: 2020-08-18T11:21:04Z"
           PropagateAtLaunch: true
 
-  ClusterNodeLaunchConfig:
+  ClusterNodeLaunchConfigWithPostgreSQL:
     Type: AWS::AutoScaling::LaunchConfiguration
+    Condition: UsePostgreSQL
     DependsOn:
       - EFSMountAz1
       - EFSMountAz2
@@ -1243,9 +1257,64 @@ Resources:
             - "#!/bin/bash -xe\n"
             - "yum update -y aws-cfn-bootstrap\n"
             - !Sub ["/opt/aws/bin/cfn-init -v --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
-            - !Sub [" --resource ClusterNodeLaunchConfig --region ${Region}\n", {Region: !Ref "AWS::Region"}]
+            - !Sub [" --resource ClusterNodeLaunchConfigWithPostgreSQL --region ${Region}\n", {Region: !Ref "AWS::Region"}]
             - !Sub ["/opt/aws/bin/cfn-signal -e $? --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
-            - !Sub [" --resource ClusterNodeLaunchConfig --region ${Region}", {Region: !Ref "AWS::Region"}]
+            - !Sub [" --resource ClusterNodeLaunchConfigWithPostgreSQL --region ${Region}", {Region: !Ref "AWS::Region"}]
+
+  ClusterNodeLaunchConfigWithMySQL:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Condition: UseMySQL
+    DependsOn:
+      - EFSMountAz1
+      - EFSMountAz2
+    Metadata:
+      Comment: ''
+      AWS::CloudFormation::Init:
+        config:
+          commands:
+            070_create_atl_dir:
+              test: "test ! -d /opt/atlassian/"
+              command: mkdir -p /opt/atlassian
+              ignoreErrors: false
+            071_install_packages:
+              command: yum install -y git python-virtualenv
+              ignoreErrors: true
+
+    Properties:
+      AssociatePublicIpAddress: false
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref ClusterNodeVolumeSize
+        - DeviceName: /dev/xvdf
+          NoDevice: true
+      KeyName: !If
+        - KeyProvided
+        - !Ref KeyPairName
+        - Ref: AWS::NoValue
+      IamInstanceProfile: !Ref JiraClusterNodeInstanceProfile
+      ImageId:
+        !FindInMap
+          - AWSRegionArch2AMI
+          - !Ref AWS::Region
+          - !FindInMap
+              - AWSInstanceType2Arch
+              - !Ref ClusterNodeInstanceType
+              - Arch
+      InstanceType: !Ref ClusterNodeInstanceType
+      SecurityGroups: [!Ref SecurityGroup]
+      UserData:
+        Fn::Base64:
+          !Join
+          - ""
+          -
+            - "#!/bin/bash -xe\n"
+            - "yum update -y aws-cfn-bootstrap\n"
+            - !Sub ["/opt/aws/bin/cfn-init -v --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
+            - !Sub [" --resource ClusterNodeLaunchConfigWithMySQL --region ${Region}\n", {Region: !Ref "AWS::Region"}]
+            - !Sub ["/opt/aws/bin/cfn-signal -e $? --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
+            - !Sub [" --resource ClusterNodeLaunchConfigWithMySQL --region ${Region}", {Region: !Ref "AWS::Region"}]
+
   ElasticFileSystem:
     Type: AWS::EFS::FileSystem
     Properties:
@@ -1295,7 +1364,8 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub
-        - https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-database-for-atlassian-services.yaml
+        #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-database-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-database-for-atlassian-services.yaml
         - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       Parameters:
         DatabaseImplementation: !Ref DBEngine
@@ -1534,6 +1604,7 @@ Resources:
       TargetKeyId: !Ref EncryptionKey
   AnsibleRepoPinSHA:
     Type: AWS::SSM::Parameter
+    Condition: UsePostgreSQL
     Properties:
       Description: "The dc-deployments-automation commit SHA that all nodes in the cluster will use"
       Name: !Sub "/${AWS::StackName}/pinned-ansible-sha"

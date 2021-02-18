@@ -345,11 +345,12 @@ Parameters:
     Type: String
   DBEngine:
     Default: 'PostgreSQL'
-    Description: 'Database Engine to use for the application. PostgreSQL or Amazon Aurora PostgreSQL'
+    Description: 'Database Engine to use for the application. MySQL, PostgreSQL or Amazon Aurora PostgreSQL'
     AllowedValues:
       - 'PostgreSQL'
       - 'Amazon Aurora PostgreSQL'
-    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL'.
+      - 'MySQL'
+    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL' or 'MySQL'
     Type: String
   DBEngineVersion:
     Default: 9
@@ -357,6 +358,8 @@ Parameters:
       - 9
       - 10
       - 11
+      - 5
+      - 8
     Description: "The database engine version to use; we'll install a suitable minor version for your chosen engine. Make sure that the Jira version you're installing supports the database engine selected. Check https://confluence.atlassian.com/x/bqr1Nw to verify this."
     Type: String
   DBInstanceClass:
@@ -691,7 +694,8 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub
-        - https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-vpc-for-atlassian-services.yaml
+        #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-vpc-for-atlassian-services.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-vpc-for-atlassian-services.yaml
         - QSS3Region: !If
             - GovCloudCondition
             - s3-us-gov-west-1
@@ -715,7 +719,8 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub
-        - https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/quickstart-jira-dc.template.yaml
+        #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/quickstart-jira-dc.template.yaml
+        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-jira-dc.template.yaml
         - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       Parameters:
         CatalinaOpts: !Ref 'CatalinaOpts'

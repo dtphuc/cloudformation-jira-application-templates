@@ -22,8 +22,6 @@ Parameters:
     Type: String
     ConstraintDescription: "Choose an engine from the drop down"
     AllowedValues: 
-      - "mysql-5.5"
-      - "mysql-5.6"
       - "mysql-5.7"
       - "mysql-8.0"
       - "postgres-9.6"
@@ -152,12 +150,6 @@ Parameters:
 
 Mappings:
   EngineMap:
-    'mysql-5.5':
-      Engine: 'mysql'
-      EngineVersion: '5.5'
-    'mysql-5.6':
-      Engine: 'mysql'
-      EngineVersion: '5.6'
     'mysql-5.7':
       Engine: 'mysql'
       EngineVersion: '5.7'
