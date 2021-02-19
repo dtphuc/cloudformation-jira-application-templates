@@ -28,14 +28,16 @@ Parameters:
       - "postgres-10"
       - "postgres-11"
     Default: "mysql-5.7"
-  DBEngineVersion:
-    Default: 9.6
-    AllowedValues:
-      - 9.6
-      - 10
-      - 11
-    Description: "The database engine version to use. We'll install a supported minor version that's suitable for your chosen engine"
-    Type: String
+  # DBEngineVersion:
+  #   Default: 9.6
+  #   AllowedValues:
+  #     - 9.6
+  #     - 10
+  #     - 11
+  #     - 5.7
+  #     - 8.0
+  #   Description: "The database engine version to use. We'll install a supported minor version that's suitable for your chosen engine"
+  #   Type: String
   DBAutoMinorVersionUpgrade:
     Default: true
     AllowedValues:

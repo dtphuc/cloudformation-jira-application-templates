@@ -1267,19 +1267,203 @@ Resources:
     DependsOn:
       - EFSMountAz1
       - EFSMountAz2
+      - AnsibleRepoPinSHA
     Metadata:
       Comment: ''
       AWS::CloudFormation::Init:
         config:
+          packages:
+            yum:
+              git: []
+              python-virtualenv: []
+              nmap-ncat: []
+              mariadb: []
+              awscli: []
+              jq: []
+          sources:
+            /tmp: "https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-8.0.23.tar.gz"
+          files:
+            /etc/atl:
+              mode: "000640"
+              owner: root
+              group: root
+              content:
+                'Fn::Join':
+                  - "\n"
+                  - - "ATL_PRODUCT_FAMILY=jira"
+                    - "ATL_DB_DRIVER=com.mysql.cj.jdbc.Driver"
+                    - "ATL_JDBC_DB_NAME=jira"
+                    - "ATL_JDBC_USER=atljira"
+                    - "ATL_JVM_OPTS='-XX:+ExplicitGCInvokesConcurrent -XX:ReservedCodeCacheSize=512M'"
+                    - "ATL_APP_DATA_MOUNT_ENABLED=false"
+                    - "ATL_ENABLED_PRODUCTS=Jira"
+                    - "ATL_ENABLED_SHARED_HOMES="
+                    - "ATL_NGINX_ENABLED=false"
+                    - "ATL_RELEASE_S3_BUCKET=atlassian-software"
+                    - "ATL_RELEASE_S3_PATH=releases"
+                    - "ATL_SSL_SELF_CERT_ENABLED=false"
+                    - ""
+                    - !Sub ["ATL_PRODUCT_EDITION=${Edition}", Edition: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "editionToInstall"]]
+                    - !Sub ["ATL_PRODUCT_VERSION=${ProductVersion}", ProductVersion: !Ref JiraVersion]
+                    - !If [InstallJSDAsOBR, "ATL_JSD_ASOBR=true", !Ref "AWS::NoValue"]
+                    - !Sub ["ATL_EFS_ID=${ElasticFileSystem}", ElasticFileSystem: !Ref "ElasticFileSystem"]
+                    - !If [DoSSL, "ATL_SSL_PROXY=true", !Ref "AWS::NoValue"]
+                    - !Sub ["ATL_AWS_STACK_NAME=${StackName}", StackName: !Ref "AWS::StackName"]
+                    - !Sub ["ATL_CATALINA_OPTS=\"${CatalinaOpts} ${MailOpts}\"", { CatalinaOpts: !Ref CatalinaOpts, MailOpts: !If [DisableMail, '-Datlassian.mail.senddisabled=true -Datlassian.mail.fetchdisabled=true -Datlassian.mail.popdisabled=true', ''] }]
+                    - !Sub ["ATL_DB_ENGINE=${DBEngine}", DBEngine: !If [DBEngineAurora, aurora_postgres, !If [DBEnginePostgres, rds_postgres, rds_mysql]]]
+                    - !Sub ["ATL_DB_HOST=${DBEndpointAddress}", DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress]
+                    - !Sub ["ATL_DB_MAXIDLE=${DBMaxIdle}", DBMaxIdle: !Ref DBMaxIdle]
+                    - !Sub ["ATL_DB_MAXWAITMILLIS=${DBMaxWaitMillis}", DBMaxWaitMillis: !Ref DBMaxWaitMillis]
+                    - !Sub ["ATL_DB_MINEVICTABLEIDLETIMEMILLIS=${DBMinEvictableIdleTimeMillis}", DBMinEvictableIdleTimeMillis: !Ref DBMinEvictableIdleTimeMillis]
+                    - !Sub ["ATL_DB_MINIDLE=${DBMinIdle}", DBMinIdle: !Ref DBMinIdle]
+                    - !Sub ["ATL_DB_ROOT_PASSWORD='${DBMasterUserPassword}'", DBMasterUserPassword: !Ref DBMasterUserPassword]
+                    - !Sub ["ATL_DB_POOLMAXSIZE=${DBPoolMaxSize}", DBPoolMaxSize: !Ref DBPoolMaxSize]
+                    - !Sub ["ATL_DB_POOLMINSIZE=${DBPoolMinSize}", DBPoolMinSize: !Ref DBPoolMinSize]
+                    - !Sub ["ATL_DB_PORT=${DBEndpointPort}", DBEndpointPort: !GetAtt DB.Outputs.RDSEndPointPort]
+                    - !Sub ["ATL_DB_REMOVEABANDONED=${DBRemoveAbandoned}", DBRemoveAbandoned: !Ref DBRemoveAbandoned]
+                    - !Sub ["ATL_DB_REMOVEABANDONEDTIMEOUT=${DBRemoveAbandonedTimeout}", DBRemoveAbandonedTimeout: !Ref DBRemoveAbandonedTimeout]
+                    - !Sub ["ATL_DB_TESTONBORROW=${DBTestOnBorrow}", DBTestOnBorrow: !Ref DBTestOnBorrow]
+                    - !Sub ["ATL_DB_TESTWHILEIDLE=${DBTestWhileIdle}", DBTestWhileIdle: !Ref DBTestWhileIdle]
+                    - !Sub ["ATL_DB_TIMEBETWEENEVICTIONRUNSMILLIS=${DBTimeBetweenEvictionRunsMillis}", DBTimeBetweenEvictionRunsMillis: !Ref DBTimeBetweenEvictionRunsMillis]
+                    - !Sub ["ATL_HOSTEDZONE=${HostedZone}", HostedZone: !Ref HostedZone]
+                    - !Sub ["ATL_JDBC_PASSWORD='${DBPassword}'", DBPassword: !Ref DBPassword]
+                    - !Sub ["ATL_JDBC_URL='jdbc:mysql://address=(protocol=tcp)(host=${DBEndpointAddress})(port=${DBEndpointPort})/jira?sessionVariables=default_storage_engine=InnoDB'", { DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress, DBEndpointPort: !GetAtt DB.Outputs.RDSEndPointPort }]
+                    - !Sub ["ATL_JIRA_FULL_DISPLAY_NAME=${JiraFullDisplayName}", JiraFullDisplayName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "fulldisplayname"]]
+                    - !Sub ["ATL_JIRA_NAME=${JiraProductName}", JiraProductName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "name"]]
+                    - !Sub ["ATL_JIRA_SHORT_DISPLAY_NAME=${JiraShortDisplayName}", JiraShortDisplayName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "shortdisplayname"]]
+                    - !Sub ["ATL_JVM_HEAP=${AtlJvmHeap}", AtlJvmHeap: !If [OverrideHeap, !Ref 'JvmHeapOverride', !FindInMap [AWSInstanceType2Arch, !Ref ClusterNodeInstanceType, Jvmheap]]]
+                    - !Sub ["ATL_PROXY_NAME=${AtlProxyName}", AtlProxyName: !If [UseCustomDnsName, !Ref CustomDnsName, !If [UseHostedZone, !Ref LoadBalancerCname, !GetAtt LoadBalancer.DNSName]]]
+                    - !Sub ["ATL_TOMCAT_ACCEPTCOUNT=${TomcatAcceptCount}", TomcatAcceptCount: !Ref TomcatAcceptCount]
+                    - !Sub ["ATL_TOMCAT_CONNECTIONTIMEOUT=${TomcatConnectionTimeout}", TomcatConnectionTimeout: !Ref TomcatConnectionTimeout]
+                    - !Sub ["ATL_TOMCAT_CONTEXTPATH=${TomcatContextPath}", TomcatContextPath: !Ref TomcatContextPath]
+                    - !Sub ["ATL_TOMCAT_DEFAULTCONNECTORPORT=${TomcatDefaultConnectorPort}", TomcatDefaultConnectorPort: !Ref TomcatDefaultConnectorPort]
+                    - !Sub ["ATL_TOMCAT_ENABLELOOKUPS=${TomcatEnableLookups}", TomcatEnableLookups: !Ref TomcatEnableLookups]
+                    - !Sub ["ATL_TOMCAT_MAXTHREADS=${TomcatMaxThreads}", TomcatMaxThreads: !Ref TomcatMaxThreads]
+                    - !Sub ["ATL_TOMCAT_MINSPARETHREADS=${TomcatMinSpareThreads}", TomcatMinSpareThreads: !Ref TomcatMinSpareThreads]
+                    - !Sub ["ATL_TOMCAT_PROTOCOL=${TomcatProtocol}", TomcatProtocol: !Ref TomcatProtocol]
+                    - !Sub ["ATL_TOMCAT_PROXYPORT=${TomcatProxyPort}", TomcatProxyPort: !If [DoSSL, 443, 80]]
+                    - !Sub ["ATL_TOMCAT_REDIRECTPORT=${TomcatRedirectPort}", TomcatRedirectPort: !Ref TomcatRedirectPort]
+                    - !Sub ["ATL_TOMCAT_SCHEME=${TomcatScheme}", TomcatScheme: !If [DoSSL, https, http]]
+                    - !Sub ["ATL_TOMCAT_SECURE=${TomcatSecure}", TomcatSecure: !If [DoSSL, true, false]]
+                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY=${DeployRepository}", DeployRepository: !Ref "DeploymentAutomationRepository"]
+                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_BRANCH=${DeployRepositoryBranch}", DeployRepositoryBranch: !Ref "DeploymentAutomationBranch"]
+                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_PLAYBOOK=${DeployRepositoryPlaybook}", DeployRepositoryPlaybook: !Ref "DeploymentAutomationPlaybook"]
+                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_KEYNAME=${DeployRepositoryKeyName}", DeployRepositoryKeyName: !Ref "DeploymentAutomationKeyName"]
+                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_CUSTOM_PARAMS='${DeployRepositoryCustomParams}'", DeployRepositoryCustomParams: !Ref "DeploymentAutomationCustomParams"]
+                    - !Sub ["ATL_AWS_ENABLE_CLOUDWATCH=${EnableCW}", EnableCW: !If [EnableCloudWatch, true, false]]
+                    - !Sub ["ATL_AWS_ENABLE_CLOUDWATCH_LOGS=${EnableCWLogs}", EnableCWLogs: !If [EnableCloudWatchLogs, true, false]]
+
+            /opt/atlassian/bin/clone_deployment_repo:
+              content: !Sub |
+                #!/bin/bash
+                exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+                key_location=/root/.ssh/deployment_repo_key
+                key_name="${DeploymentAutomationKeyName}"
+                ssm_pin=/${AWS::StackName}/pinned-ansible-sha
+
+                yum install -y git awscli jq mysql mysql-server nc
+
+                if [[ ! -z "$key_name" ]]; then
+                    # Ensure awscli is up to date
+                    key_val=$(aws --region=${AWS::Region} ssm get-parameters --names "$key_name" --with-decryption | jq --raw-output '.Parameters[0].Value')
+                    echo -e "$key_val" > $key_location
+                    chmod 600 $key_location
+                    export GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -i $key_location"
+                else
+                    export GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+                fi
+
+                ### Ansible repo pinning ###
+                pinned_commit_id=$(aws --region=${AWS::Region} ssm get-parameters --names "$ssm_pin" | jq --raw-output '.Parameters[0].Value')
+
+                git clone "${DeploymentAutomationRepository}" -b "${DeploymentAutomationBranch}" /opt/atlassian/dc-deployments-automation/
+                cd /opt/atlassian/dc-deployments-automation/
+
+                if [[ "$pinned_commit_id" == "latest" || -z "$pinned_commit_id" ]]; then
+                  head_id=$(git rev-parse HEAD)
+                  echo "SSM param [$ssm_pin] has been set to 'latest' - Using the HEAD SHA [$head_id] to build cluster [${AWS::StackName}]"
+                  echo "Updating SSM param [$ssm_pin] with current HEAD SHA: [$head_id]"
+                  aws --region=${AWS::Region} ssm put-parameter --name "$ssm_pin" --value "$head_id" --overwrite --type String
+                else
+                  echo "Ansible repo has been pinned, checking out commit: [$pinned_commit_id]"
+                  git checkout -b "pinned-ansible-sha-$pinned_commit_id" "$pinned_commit_id"
+                fi
+                sed '28,31d' ${DeploymentAutomationPlaybook} > ${DeploymentAutomationPlaybook}.new
+                sed '/atl_jdbc/d' ${DeploymentAutomationPlaybook}.new > ${DeploymentAutomationPlaybook}.new.1
+                rm -f ${DeploymentAutomationPlaybook} ${DeploymentAutomationPlaybook}.new
+                mv ${DeploymentAutomationPlaybook}.new.1 ${DeploymentAutomationPlaybook}
+              mode: "000750"
+              owner: root
+              group: root
+
+            /tmp/setup.mysql: 
+              content: !Sub ["CREATE DATABASE jira; CREATE USER jirauser IDENTIFIED BY '${DBPassword}'; GRANT ALL ON jira.* TO 'jirauser'@'%'; FLUSH PRIVILEGES;", {DBPassword: !Ref "DBPassword"}]
+              mode: "000644"
+              owner: "root"
+              group: "root"
+            /opt/atlassian/dbconfig.xml:
+              owner: root
+              group: root
+              content:
+                'Fn::Join':
+                  - "\n"
+                  - - "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    - "<jira-database-config>"
+                    - "\t<name>defaultDS</name>"
+                    - "\t<delegator-name>default</delegator-name>"
+                    - "\t<database-type>mysql8</database-type>"
+                    - "\t<jdbc-datasource>"
+                    - !Sub ["\t\t<url>jdbc:mysql://address=(protocol=tcp)(host=${DBEndpointAddress})(port=3306)/jira?sessionVariables=default_storage_engine=InnoDB</url>", DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress]
+                    - "\t\t<driver-class>com.mysql.cj.jdbc.Driver</driver-class>"
+                    - "\t\t<username>jirauser</username>"
+                    - !Sub ["\t\t<password>${DBPassword}</password>", DBPassword: !Ref DBPassword]
+                    - "\t\t<pool-min-size>20</pool-min-size>"
+                    - "\t\t<pool-max-size>20</pool-max-size>"
+                    - "\t\t<pool-max-wait>30000</pool-max-wait>"
+                    - "\t\t<validation-query>select 1</validation-query>"
+                    - "\t\t<min-evictable-idle-time-millis>60000</min-evictable-idle-time-millis>"
+                    - "\t\t<time-between-eviction-runs-millis>300000</time-between-eviction-runs-millis>"
+                    - "\t\t<pool-max-idle>20</pool-max-idle>"
+                    - "\t\t<pool-remove-abandoned>true</pool-remove-abandoned>"
+                    - "\t\t<pool-remove-abandoned-timeout>300</pool-remove-abandoned-timeout>"
+                    - "\t\t<pool-test-on-borrow>false</pool-test-on-borrow>"
+                    - "\t\t<pool-test-while-idle>true</pool-test-while-idle>"
+                    - "\t\t<validation-query-timeout>3</validation-query-timeout>"
+                    - "\t</jdbc-datasource>"
+                    - "</jira-database-config>"
           commands:
             070_create_atl_dir:
               test: "test ! -d /opt/atlassian/"
               command: mkdir -p /opt/atlassian
               ignoreErrors: false
-            071_install_packages:
-              command: yum install -y git python-virtualenv
+            071_clone_atl_scripts:
+              test: "test ! -d /opt/atlassian/dc-deployments-automation/"
+              command: /opt/atlassian/bin/clone_deployment_repo
+              ignoreErrors: true
+            080_run_atl_init_node:
+              command: !Sub |
+                cd /opt/atlassian/dc-deployments-automation/ && ./bin/install-ansible && ./bin/ansible-with-atl-env inv/aws_node_local ${DeploymentAutomationPlaybook} /var/log/ansible-bootstrap.log
+              ignoreErrors: true
+            081_setup_database:
+              command: !Sub ["mysql -h ${DBEndpointAddress} -u master --password=${DBMasterUserPassword} < /tmp/setup.mysql",{DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress, DBMasterUserPassword: !Ref "DBMasterUserPassword"}]
+              ignoreErrors: true
+            082_install_mysql_connector:
+              test: "test ! -e /opt/atlassian/jira/lib/mysql-connector-java-8.0.23.jar"
+              command: mv /tmp/mysql-connector-java-8.0.23/mysql-connector-java-8.0.23.jar /opt/atlassian/jira-software/current/lib && mv /opt/atlassian/dbconfig.xml /var/atlassian/application-data/jira/
+              ignoreErrors: true
+            083_restart_jira:
+              command: service jira restart
+              ignoreErrors: true
+            083_clean_up:
+              command: rm -rf /tmp/setup.mysql /tmp/mysql-connector-java-8.0.23*
               ignoreErrors: true
 
+          services:
+            sysvinit:
+              jira:
+                enabled: "true"
+                ensureRunning: "true"
     Properties:
       AssociatePublicIpAddress: false
       BlockDeviceMappings:
@@ -1314,7 +1498,7 @@ Resources:
             - !Sub [" --resource ClusterNodeLaunchConfigWithMySQL --region ${Region}\n", {Region: !Ref "AWS::Region"}]
             - !Sub ["/opt/aws/bin/cfn-signal -e $? --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
             - !Sub [" --resource ClusterNodeLaunchConfigWithMySQL --region ${Region}", {Region: !Ref "AWS::Region"}]
-
+            - "service jira restart"
   ElasticFileSystem:
     Type: AWS::EFS::FileSystem
     Properties:
@@ -1604,7 +1788,6 @@ Resources:
       TargetKeyId: !Ref EncryptionKey
   AnsibleRepoPinSHA:
     Type: AWS::SSM::Parameter
-    Condition: UsePostgreSQL
     Properties:
       Description: "The dc-deployments-automation commit SHA that all nodes in the cluster will use"
       Name: !Sub "/${AWS::StackName}/pinned-ansible-sha"

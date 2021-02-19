@@ -254,7 +254,7 @@ Resources:
       Parameters:
         CustomDBSecurityGroup: !Ref DBSecurityGroup
         DBEngine: !FindInMap [EngineMap, PostgreSQL, !Ref DBEngineVersion]
-        DBEngineVersion: !FindInMap [SemanticDBVersions, PostgreSQL, !Ref DBEngineVersion]
+        #DBEngineVersion: !FindInMap [SemanticDBVersions, PostgreSQL, !Ref DBEngineVersion]
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
         DBAutoMinorVersionUpgrade: !Ref DBAutoMinorVersionUpgrade
@@ -301,7 +301,7 @@ Resources:
       Parameters:
         CustomDBSecurityGroup: !Ref DBSecurityGroup
         DBEngine: !FindInMap [EngineMap, MySQL, !Ref DBEngineVersion]
-        DBEngineVersion: !FindInMap [SemanticDBVersions, MySQL, !Ref DBEngineVersion]
+        #DBEngineVersion: !FindInMap [SemanticDBVersions, MySQL, !Ref DBEngineVersion]
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
         DBAutoMinorVersionUpgrade: !Ref DBAutoMinorVersionUpgrade
