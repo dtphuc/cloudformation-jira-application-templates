@@ -1,5 +1,7 @@
 # Deploying Atlassian Jira with CloudFormation
 
+NOTE: This stacks is inherited from [Jira products on AWS](https://aws.amazon.com/quickstart/architecture/jira/). However, I already added supporting RDS(PostgreSQl/MySQL) so that you can have more options to choose which DB you want to use.
+
 ![infrastructure-overview](https://d1.awsstatic.com/partner-network/QuickStart/datasheets/jira-on-aws-architecture.dd53a01a100d5c669246d65d948878798b71148a.png)
 
 ## Prerequisites Notes
@@ -56,6 +58,15 @@ $ AWS_PROFILE=<YOUR_AWS_PROFILE> BUCKET_NAME=<YOUR_S3_BUCKET> make init
 $ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make create-stacks
 ```
 
+5. Delete the stacks
+```sh
+$ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make delete-stacks
+```
+
+6. Clean up CFN templates in S3
+```sh
+$ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make clean-up
+```
 ## Author
 
 Jason Dang
