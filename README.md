@@ -1,5 +1,7 @@
 # Deploying Atlassian Jira with CloudFormation
 
+![infrastructure-overview](https://d1.awsstatic.com/partner-network/QuickStart/datasheets/jira-on-aws-architecture.dd53a01a100d5c669246d65d948878798b71148a.png)
+
 ## Prerequisites Notes
 The Security Group IP address is open by default (testing purpose). Update the Security Group Access with your own IP Address to ensure your instances security.
 
@@ -8,8 +10,6 @@ Before you can deploy this process, you need the following:
  - Domain in Route 53.
  - ACM Certificate
  - S3 Bucket
-
-![infrastructure-overview](https://d1.awsstatic.com/partner-network/QuickStart/datasheets/jira-on-aws-architecture.dd53a01a100d5c669246d65d948878798b71148a.png)
 
 The repository consists of a set of nested templates that deploy the following:
 
@@ -59,4 +59,4 @@ $ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BU
 ## Author
 
 Jason Dang
- - [dangphuc1302@gmail.com](dangphuc1302@gmail.com)
+ - [dangphuc1302@gmail.com](mailto:dangphuc1302@gmail.com)
