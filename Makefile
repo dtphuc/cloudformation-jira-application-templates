@@ -12,8 +12,8 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 set-env:
-	@if [ -z $(AWS_PROFILE) ] || [ -z $(STACK_NAME) ]; then \
-		echo "$(BOLD)$(RED)AWS_PROFILE or $(BOLD)$(RED)STACK_NAME was not set$(RESET)"; \
+	@if [ -z $(AWS_PROFILE) ] || [ -z $(STACK_NAME) ] || [ -z $(BUCKET_NAME) ]; then \
+		echo "$(BOLD)$(RED)AWS_PROFILE or $(BOLD)$(RED)BUCKET_NAME was not set or $(BOLD)$(RED)STACK_NAME was not set$(RESET)"; \
 		ERROR=1; \
 	 fi
 	 
@@ -22,13 +22,17 @@ set-env:
 		exit 1; \
 	 fi
 
-init: set-env ## Upload CFN templates to S3
-	@echo "Upload CFN template"
-	aws --profile $(AWS_PROFILE) s3 cp templates/ s3://cf-templates-6ofbp19dhk2c-us-east-1/ --recursive
+init: set-env ## Create S3 Bucket and upload CFN templates to S3
+	@echo "Create S3 and Upload CFN template"
+	aws --profile $(AWS_PROFILE) s3 cp templates s3://$(BUCKET_NAME)/templates --recursive
+
+validate: set-env ## Validate CFN templates
+	@echo "Validate CFN"
+	aws cloudformation --profile $(AWS_PROFILE) validate-template --template-url https://s3.amazonaws.com/$(BUCKET_NAME)/templates/quickstart-jira-dc-with-vpc.template.yaml
 
 create-stacks: set-env ## Create CFN stacks
 	@echo "Create Stacks"
-	aws cloudformation --profile $(AWS_PROFILE) deploy --stack-name $(STACK_NAME) --template-file templates/quickstart-jira-dc-with-vpc.template.yaml --parameter-overrides $$(cat params/params.ini) --capabilities CAPABILITY_NAMED_IAM
+	aws cloudformation --profile $(AWS_PROFILE) deploy --stack-name $(STACK_NAME) --template-file templates/quickstart-jira-dc-with-vpc.template.yaml --parameter-overrides $$(cat params/params.ini) CFNS3BucketName=$(BUCKET_NAME) --capabilities CAPABILITY_NAMED_IAM
 	
 delete-stacks: set-env ## Delete CFN stacks
 	@echo "Delete Stacks"
@@ -36,7 +40,7 @@ delete-stacks: set-env ## Delete CFN stacks
 
 clean-up: set-env ## Clean up CFN templates in S3
 	@echo "Clean up CFN templates in S3"
-	aws --profile $(AWS_PROFILE) s3 rm s3://cf-templates-6ofbp19dhk2c-us-east-1/ --recursive --include "quickstart-*.yaml"
+	aws --profile $(AWS_PROFILE) s3 rm s3://$(BUCKET_NAME)/ --recursive --include "quickstart-*.yaml" --include "aurora_postgresql*.yaml"
 
-all: init create-stacks
+all: init create-stacks # Create All
 delete-all: delete-stacks clean-up # Delete All

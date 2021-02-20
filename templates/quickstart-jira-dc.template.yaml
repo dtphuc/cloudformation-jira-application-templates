@@ -86,6 +86,12 @@ Metadata:
           - QSS3KeyPrefix
           - ExportPrefix
 
+      - Label:
+          default: CFN template Configuration
+        Parameters:
+          - CFNS3BucketName
+          - CFNS3KeyPrefix
+
     ParameterLabels:
       CatalinaOpts:
         default: Catalina options
@@ -197,6 +203,10 @@ Metadata:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
         default: Quick Start S3 Key Prefix
+      CFNS3BucketName:
+        default: CFN S3 Bucket Name
+      CFNS3KeyPrefix:
+        default: CFN S3 Key Prefix
 
 Parameters:
   CatalinaOpts:
@@ -628,6 +638,23 @@ Parameters:
     ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
       uppercase letters, hyphens (-), and forward slash (/).
     Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
+  CFNS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for your CFN assets. CFN bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  CFNS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Description: S3 key prefix for your CFN assets. CFN key prefix
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
@@ -1549,7 +1576,7 @@ Resources:
     Properties:
       TemplateURL: !Sub
         #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-database-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-database-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-database-for-atlassian-services.yaml
         - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       Parameters:
         DatabaseImplementation: !Ref DBEngine
@@ -1567,6 +1594,8 @@ Resources:
         ExportPrefix: !Ref ExportPrefix
         QSS3BucketName: !Ref QSS3BucketName
         QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        CFNS3BucketName: !Ref CFNS3BucketName
+        CFNS3KeyPrefix: !Ref CFNS3KeyPrefix
   DBCname:
     Condition: UseHostedZone
     Type: AWS::Route53::RecordSet

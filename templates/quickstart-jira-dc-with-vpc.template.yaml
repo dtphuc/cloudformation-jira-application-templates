@@ -95,6 +95,12 @@ Metadata:
           - QSS3KeyPrefix
           - ExportPrefix
 
+      - Label:
+          default: CFN template Configuration
+        Parameters:
+          - CFNS3BucketName
+          - CFNS3KeyPrefix
+
     ParameterLabels:
       AccessCIDR:
         default: Trusted IP range
@@ -215,6 +221,11 @@ Metadata:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
         default: Quick Start S3 Key Prefix
+
+      CFNS3BucketName:
+        default: CFN S3 Bucket Name
+      CFNS3KeyPrefix:
+        default: CFN S3 Key Prefix
 
       VPCCIDR:
         default: IP address block for the VPC
@@ -672,6 +683,23 @@ Parameters:
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
+  CFNS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for your CFN assets. CFN bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  CFNS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Description: S3 key prefix for your CFN assets. CFN key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
   VPCCIDR:
     Default: 10.0.0.0/16
     AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
@@ -695,7 +723,7 @@ Resources:
     Properties:
       TemplateURL: !Sub
         #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-vpc-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-vpc-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-vpc-for-atlassian-services.yaml
         - QSS3Region: !If
             - GovCloudCondition
             - s3-us-gov-west-1
@@ -720,7 +748,7 @@ Resources:
     Properties:
       TemplateURL: !Sub
         #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/quickstart-jira-dc.template.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-jira-dc.template.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-jira-dc.template.yaml
         - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       Parameters:
         CatalinaOpts: !Ref 'CatalinaOpts'
@@ -767,6 +795,8 @@ Resources:
         MailEnabled: !Ref 'MailEnabled'
         QSS3BucketName: !Ref 'QSS3BucketName'
         QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
+        CFNS3BucketName: !Ref 'CFNS3BucketName'
+        CFNS3KeyPrefix: !Ref 'CFNS3KeyPrefix'
         SSLCertificateARN: !Ref 'SSLCertificateARN'
         TomcatAcceptCount: !Ref 'TomcatAcceptCount'
         TomcatContextPath: !Ref 'TomcatContextPath'

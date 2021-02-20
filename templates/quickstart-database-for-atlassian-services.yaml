@@ -148,7 +148,23 @@ Parameters:
     Description:
       Each Atlassian Standard Infrastructure (ASI) uses a unique identifier. If you have multiple ASIs within the same AWS region, use this field to specify where to deploy the DB.
     Type: String
-
+  CFNS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for your CFN assets. CFN bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  CFNS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Description: S3 key prefix for your CFN assets. CFN key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
 Conditions:
   GovCloudCondition: !Equals
     - !Ref 'AWS::Region'
@@ -198,10 +214,12 @@ Resources:
         # Maintain backward compatibility for non-region support
         - NoBucketRegionSupplied
         - !Sub
-          - https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+          #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/aurora_postgres.template.yaml
           - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
         - !Sub
-          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+          #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/aurora_postgres.template.yaml
           - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
             S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
       Parameters:
@@ -244,11 +262,11 @@ Resources:
         - NoBucketRegionSupplied
         - !Sub
           #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
           - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
         - !Sub
           #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
           - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
             S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
       Parameters:
@@ -291,11 +309,11 @@ Resources:
         - NoBucketRegionSupplied
         - !Sub
           #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
           - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
         - !Sub
           #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-          - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+          - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
           - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
             S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
       Parameters:
@@ -366,10 +384,12 @@ Outputs:
     Value: !If
       - NoBucketRegionSupplied
       - !Sub
-        - https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+        #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/aurora_postgres.template.yaml
         - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       - !Sub
-        - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+        #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/submodules/quickstart-amazon-aurora/templates/aurora_postgres.template.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/aurora_postgres.template.yaml
         - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
           S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
   PostgresTemplateURL:
@@ -379,11 +399,11 @@ Outputs:
       - NoBucketRegionSupplied
       - !Sub
         #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
         - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       - !Sub
         #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
         - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
           S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
   MySQLTemplateURL:
@@ -393,10 +413,10 @@ Outputs:
       - NoBucketRegionSupplied
       - !Sub
         #- https://${QSS3BucketName}.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
         - S3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
       - !Sub
         #- https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-postgres-for-atlassian-services.yaml
-        - https://cf-templates-6ofbp19dhk2c-us-east-1.s3.amazonaws.com/quickstart-rds-for-atlassian-services.yaml
+        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
         - S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
           S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
