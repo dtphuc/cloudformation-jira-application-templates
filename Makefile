@@ -38,6 +38,14 @@ delete-stacks: set-env ## Delete CFN stacks
 	@echo "Delete Stacks"
 	aws cloudformation --profile $(AWS_PROFILE) delete-stack --stack-name $(STACK_NAME)
 
+create-jira-only: set-env ## Create CFN stacks
+	@echo "Create Stacks"
+	aws cloudformation --profile $(AWS_PROFILE) deploy --stack-name $(STACK_NAME) --template-file templates/jira.template.yaml --parameter-overrides $$(cat params/params-jira.ini) CFNS3BucketName=$(BUCKET_NAME) --s3-bucket $(BUCKET_NAME) --capabilities CAPABILITY_NAMED_IAM
+
+validate-jira: set-env ## Validate CFN templates
+	@echo "Validate CFN"
+	aws cloudformation --profile $(AWS_PROFILE) validate-template --template-url https://s3.amazonaws.com/$(BUCKET_NAME)/templates/jira.template.yaml
+
 clean-up: set-env ## Clean up CFN templates in S3
 	@echo "Clean up CFN templates in S3"
 	aws --profile $(AWS_PROFILE) s3 rm s3://$(BUCKET_NAME)/ --recursive --include "quickstart-*.yaml" --include "aurora_postgresql*.yaml"

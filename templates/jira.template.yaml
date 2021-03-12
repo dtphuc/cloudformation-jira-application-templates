@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'Atlassian Jira Data Center. (qs-1qup6ra3c)'
+Description: 'AWS CloudFormation template to create Atlassian Jira Data Center into existing VPC'
 Metadata:
   QuickStartDocumentation:
     EntrypointName: "Launch into an existing VPC"
@@ -220,6 +220,18 @@ Parameters:
     Type: String
     MinLength: 9
     MaxLength: 18
+  AccessCIDR:
+    Type: String
+    Description: CIDR to allow to access Jira
+    Default: '0.0.0.0/0'
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: Comma-delimited list of Private Subnet Ids
+    Default: ''
+  PublicSubnetIds:
+    Type: CommaDelimitedList
+    Description: Comma-delimited list of Public Subnet Ids
+    Default: ''
   CloudWatchIntegration:
     Default: "Metrics and Logs"
     Type: String
@@ -339,20 +351,15 @@ Parameters:
     Description: 'Use custom existing DNS name for your Data Center instance. This will take precedence over HostedZone. Please note: you must own the domain and configure it to point at the load balancer.'
     Type: String
   DBEngine:
-    Default: 'PostgreSQL'
-    Description: 'Database Engine to use for the application. MySQL, PostgreSQL or Amazon Aurora PostgreSQL'
+    Default: 'MySQL'
+    Description: 'Database Engine to use for the application.'
     AllowedValues:
-      - 'PostgreSQL'
-      - 'Amazon Aurora PostgreSQL'
       - 'MySQL'
-    ConstraintDescription: Must be 'Amazon Aurora PostgreSQL' or 'PostgreSQL' or 'MySQL'
+    ConstraintDescription: Must be 'MySQL'
     Type: String
   DBEngineVersion:
-    Default: 9
+    Default: 8
     AllowedValues:
-      - 9
-      - 10
-      - 11
       - 5
       - 8
     Description: "The database engine version to use; we'll install a suitable minor version for your chosen engine. Make sure that the Jira version you're installing supports the database engine selected. Check https://confluence.atlassian.com/x/bqr1Nw to verify this."
@@ -393,12 +400,12 @@ Parameters:
       - db.t2.xlarge
       - db.t2.2xlarge
     ConstraintDescription: Must be a valid RDS instance class, from the selection list
-    Description: RDS instance type (must be r family if using Aurora).
+    Description: RDS instance type
     Type: String
   DBIops:
     Default: 1000
     ConstraintDescription: 'Must be in the range 1000 - 30000'
-    Description: 'Must be in the range of 1000 - 30000 and a multiple of 1000. This value is only used with Provisioned IOPS. Note: The ratio of IOPS per allocated-storage must be between 3.00 and 10.00 (not used for Aurora).'
+    Description: 'Must be in the range of 1000 - 30000 and a multiple of 1000. This value is only used with Provisioned IOPS.'
     MaxValue: 30000
     MinValue: 1000
     Type: Number
@@ -407,7 +414,7 @@ Parameters:
       ^(?=^.{8,255}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])(?!.*[@/"']).*$
     ConstraintDescription: >-
       Must be at least 8 characters and include 1 uppercase, 1 lowercase, 1 number, and 1 of the following symbols: ! # $ { * : [ = , ] - _ + % &
-    Description: "Password for the master ('postgres') account. Must be at least 8 characters and include 1 uppercase, 1 lowercase, 1 number, and 1 of the following symbols: ! # $ { * : [ = , ] - _ + % &"
+    Description: "Password for the master account. Must be at least 8 characters and include 1 uppercase, 1 lowercase, 1 number, and 1 of the following symbols: ! # $ { * : [ = , ] - _ + % &"
     NoEcho: True
     MaxLength: 128
     MinLength: 8
@@ -465,7 +472,7 @@ Parameters:
     Type: Number
   DBStorage:
     Default: 200
-    Description: Database allocated storage size, in gigabytes (GB). If you choose Provisioned IOPS, storage should be between 100 and 6144 (not used for Aurora).
+    Description: Database allocated storage size, in gigabytes (GB). If you choose Provisioned IOPS'
     Type: Number
   DBStorageEncrypted:
     Default: "false"
@@ -480,7 +487,7 @@ Parameters:
       - General Purpose (SSD)
       - Provisioned IOPS
     ConstraintDescription: Must be 'General Purpose (SSD)' or 'Provisioned IOPS'.
-    Description: Database storage type (not used for Aurora).
+    Description: Database storage type
     Type: String
   DBTestOnBorrow:
     Default: "false"
@@ -684,16 +691,6 @@ Conditions:
     !Equals [!Ref InternetFacingLoadBalancer, 'true']
   GovCloudCondition:
     !Equals [!Ref 'AWS::Region', 'us-gov-west-1']
-  DBEngineAurora:
-    !Equals [!Ref DBEngine, "Amazon Aurora PostgreSQL"]
-  DBEnginePostgres:
-    !Equals [!Ref DBEngine, "PostgreSQL"]
-  DBEngineMySQL:
-    !Equals [!Ref DBEngine, "MySQL"]
-  UsePostgreSQL:
-    !Not [!Equals [!Ref DBEngine, "MySQL"]]
-  UseMySQL:
-    !Equals [!Ref DBEngine, "MySQL"]
   UseBastionHost: !And
     - !Equals [!Ref BastionHostRequired, true]
     - !Condition KeyProvided
@@ -1089,17 +1086,11 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       DesiredCapacity: !Ref ClusterNodeMin
-      LaunchConfigurationName: 
-        !If 
-        - UsePostgreSQL
-        - !Ref ClusterNodeLaunchConfigWithPostgreSQL
-        - !Ref ClusterNodeLaunchConfigWithMySQL
+      LaunchConfigurationName: !Ref ClusterNodeLaunchConfigWithMySQL
       MaxSize: !Ref ClusterNodeMax
       MinSize: !Ref ClusterNodeMin
       TargetGroupARNs: [!Ref MainTargetGroup]
-      VPCZoneIdentifier: !Split
-        - ","
-        - Fn::ImportValue: !Sub "${ExportPrefix}PriNets"
+      VPCZoneIdentifier: !Ref "PrivateSubnetIds"
       Tags:
         - Key: Name
           Value: !Sub ["${StackName} Jira Node", {StackName: !Ref 'AWS::StackName'}]
@@ -1115,183 +1106,8 @@ Resources:
           Value: "TIMESTAMP: 2020-08-18T11:21:04Z"
           PropagateAtLaunch: true
 
-  ClusterNodeLaunchConfigWithPostgreSQL:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Condition: UsePostgreSQL
-    DependsOn:
-      - EFSMountAz1
-      - EFSMountAz2
-      - AnsibleRepoPinSHA
-    Metadata:
-      Comment: ''
-      AWS::CloudFormation::Init:
-        config:
-          files:
-            /etc/atl:
-              mode: "000640"
-              owner: root
-              group: root
-              content:
-                'Fn::Join':
-                  - "\n"
-                  - - "ATL_PRODUCT_FAMILY=jira"
-                    - "ATL_DB_DRIVER=org.postgresql.Driver"
-                    - "ATL_JDBC_DB_NAME=jira"
-                    - "ATL_JDBC_USER=atljira"
-                    - "ATL_JVM_OPTS='-XX:+ExplicitGCInvokesConcurrent -XX:ReservedCodeCacheSize=512M'"
-                    - "ATL_APP_DATA_MOUNT_ENABLED=false"
-                    - "ATL_ENABLED_PRODUCTS=Jira"
-                    - "ATL_ENABLED_SHARED_HOMES="
-                    - "ATL_NGINX_ENABLED=false"
-                    - "ATL_POSTGRES_ENABLED=false"
-                    - "ATL_RELEASE_S3_BUCKET=atlassian-software"
-                    - "ATL_RELEASE_S3_PATH=releases"
-                    - "ATL_SSL_SELF_CERT_ENABLED=false"
-                    - ""
-                    - !Sub ["ATL_PRODUCT_EDITION=${Edition}", Edition: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "editionToInstall"]]
-                    - !Sub ["ATL_PRODUCT_VERSION=${ProductVersion}", ProductVersion: !Ref JiraVersion]
-                    - !If [InstallJSDAsOBR, "ATL_JSD_ASOBR=true", !Ref "AWS::NoValue"]
-                    - !Sub ["ATL_EFS_ID=${ElasticFileSystem}", ElasticFileSystem: !Ref "ElasticFileSystem"]
-                    - !If [DoSSL, "ATL_SSL_PROXY=true", !Ref "AWS::NoValue"]
-                    - !Sub ["ATL_AWS_STACK_NAME=${StackName}", StackName: !Ref "AWS::StackName"]
-                    - !Sub ["ATL_CATALINA_OPTS=\"${CatalinaOpts} ${MailOpts}\"", { CatalinaOpts: !Ref CatalinaOpts, MailOpts: !If [DisableMail, '-Datlassian.mail.senddisabled=true -Datlassian.mail.fetchdisabled=true -Datlassian.mail.popdisabled=true', ''] }]
-                    - !Sub ["ATL_DB_ENGINE=${DBEngine}", DBEngine: !If [DBEngineAurora, aurora_postgres, !If [DBEnginePostgres, rds_postgres, '']]]
-                    - !Sub ["ATL_DB_HOST=${DBEndpointAddress}", DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress]
-                    - !Sub ["ATL_DB_MAXIDLE=${DBMaxIdle}", DBMaxIdle: !Ref DBMaxIdle]
-                    - !Sub ["ATL_DB_MAXWAITMILLIS=${DBMaxWaitMillis}", DBMaxWaitMillis: !Ref DBMaxWaitMillis]
-                    - !Sub ["ATL_DB_MINEVICTABLEIDLETIMEMILLIS=${DBMinEvictableIdleTimeMillis}", DBMinEvictableIdleTimeMillis: !Ref DBMinEvictableIdleTimeMillis]
-                    - !Sub ["ATL_DB_MINIDLE=${DBMinIdle}", DBMinIdle: !Ref DBMinIdle]
-                    - !Sub ["ATL_DB_ROOT_PASSWORD='${DBMasterUserPassword}'", DBMasterUserPassword: !Ref DBMasterUserPassword]
-                    - !Sub ["ATL_DB_POOLMAXSIZE=${DBPoolMaxSize}", DBPoolMaxSize: !Ref DBPoolMaxSize]
-                    - !Sub ["ATL_DB_POOLMINSIZE=${DBPoolMinSize}", DBPoolMinSize: !Ref DBPoolMinSize]
-                    - !Sub ["ATL_DB_PORT=${DBEndpointPort}", DBEndpointPort: !GetAtt DB.Outputs.RDSEndPointPort]
-                    - !Sub ["ATL_DB_REMOVEABANDONED=${DBRemoveAbandoned}", DBRemoveAbandoned: !Ref DBRemoveAbandoned]
-                    - !Sub ["ATL_DB_REMOVEABANDONEDTIMEOUT=${DBRemoveAbandonedTimeout}", DBRemoveAbandonedTimeout: !Ref DBRemoveAbandonedTimeout]
-                    - !Sub ["ATL_DB_TESTONBORROW=${DBTestOnBorrow}", DBTestOnBorrow: !Ref DBTestOnBorrow]
-                    - !Sub ["ATL_DB_TESTWHILEIDLE=${DBTestWhileIdle}", DBTestWhileIdle: !Ref DBTestWhileIdle]
-                    - !Sub ["ATL_DB_TIMEBETWEENEVICTIONRUNSMILLIS=${DBTimeBetweenEvictionRunsMillis}", DBTimeBetweenEvictionRunsMillis: !Ref DBTimeBetweenEvictionRunsMillis]
-                    - !Sub ["ATL_HOSTEDZONE=${HostedZone}", HostedZone: !Ref HostedZone]
-                    - !Sub ["ATL_JDBC_PASSWORD='${DBPassword}'", DBPassword: !Ref DBPassword]
-                    - !Sub ["ATL_JDBC_URL=jdbc:postgresql://${DBEndpointAddress}:${DBEndpointPort}/jira?targetServerType=master", { DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress, DBEndpointPort: !GetAtt DB.Outputs.RDSEndPointPort }]
-                    - !Sub ["ATL_JIRA_FULL_DISPLAY_NAME=${JiraFullDisplayName}", JiraFullDisplayName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "fulldisplayname"]]
-                    - !Sub ["ATL_JIRA_NAME=${JiraProductName}", JiraProductName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "name"]]
-                    - !Sub ["ATL_JIRA_SHORT_DISPLAY_NAME=${JiraShortDisplayName}", JiraShortDisplayName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "shortdisplayname"]]
-                    - !Sub ["ATL_JVM_HEAP=${AtlJvmHeap}", AtlJvmHeap: !If [OverrideHeap, !Ref 'JvmHeapOverride', !FindInMap [AWSInstanceType2Arch, !Ref ClusterNodeInstanceType, Jvmheap]]]
-                    - !Sub ["ATL_PROXY_NAME=${AtlProxyName}", AtlProxyName: !If [UseCustomDnsName, !Ref CustomDnsName, !If [UseHostedZone, !Ref LoadBalancerCname, !GetAtt LoadBalancer.DNSName]]]
-                    - !Sub ["ATL_TOMCAT_ACCEPTCOUNT=${TomcatAcceptCount}", TomcatAcceptCount: !Ref TomcatAcceptCount]
-                    - !Sub ["ATL_TOMCAT_CONNECTIONTIMEOUT=${TomcatConnectionTimeout}", TomcatConnectionTimeout: !Ref TomcatConnectionTimeout]
-                    - !Sub ["ATL_TOMCAT_CONTEXTPATH=${TomcatContextPath}", TomcatContextPath: !Ref TomcatContextPath]
-                    - !Sub ["ATL_TOMCAT_DEFAULTCONNECTORPORT=${TomcatDefaultConnectorPort}", TomcatDefaultConnectorPort: !Ref TomcatDefaultConnectorPort]
-                    - !Sub ["ATL_TOMCAT_ENABLELOOKUPS=${TomcatEnableLookups}", TomcatEnableLookups: !Ref TomcatEnableLookups]
-                    - !Sub ["ATL_TOMCAT_MAXTHREADS=${TomcatMaxThreads}", TomcatMaxThreads: !Ref TomcatMaxThreads]
-                    - !Sub ["ATL_TOMCAT_MINSPARETHREADS=${TomcatMinSpareThreads}", TomcatMinSpareThreads: !Ref TomcatMinSpareThreads]
-                    - !Sub ["ATL_TOMCAT_PROTOCOL=${TomcatProtocol}", TomcatProtocol: !Ref TomcatProtocol]
-                    - !Sub ["ATL_TOMCAT_PROXYPORT=${TomcatProxyPort}", TomcatProxyPort: !If [DoSSL, 443, 80]]
-                    - !Sub ["ATL_TOMCAT_REDIRECTPORT=${TomcatRedirectPort}", TomcatRedirectPort: !Ref TomcatRedirectPort]
-                    - !Sub ["ATL_TOMCAT_SCHEME=${TomcatScheme}", TomcatScheme: !If [DoSSL, https, http]]
-                    - !Sub ["ATL_TOMCAT_SECURE=${TomcatSecure}", TomcatSecure: !If [DoSSL, true, false]]
-                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY=${DeployRepository}", DeployRepository: !Ref "DeploymentAutomationRepository"]
-                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_BRANCH=${DeployRepositoryBranch}", DeployRepositoryBranch: !Ref "DeploymentAutomationBranch"]
-                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_PLAYBOOK=${DeployRepositoryPlaybook}", DeployRepositoryPlaybook: !Ref "DeploymentAutomationPlaybook"]
-                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_KEYNAME=${DeployRepositoryKeyName}", DeployRepositoryKeyName: !Ref "DeploymentAutomationKeyName"]
-                    - !Sub ["ATL_DEPLOYMENT_REPOSITORY_CUSTOM_PARAMS='${DeployRepositoryCustomParams}'", DeployRepositoryCustomParams: !Ref "DeploymentAutomationCustomParams"]
-
-                    - !Sub ["ATL_AWS_ENABLE_CLOUDWATCH=${EnableCW}", EnableCW: !If [EnableCloudWatch, true, false]]
-                    - !Sub ["ATL_AWS_ENABLE_CLOUDWATCH_LOGS=${EnableCWLogs}", EnableCWLogs: !If [EnableCloudWatchLogs, true, false]]
-
-            /opt/atlassian/bin/clone_deployment_repo:
-              content: !Sub |
-                #!/bin/bash
-                key_location=/root/.ssh/deployment_repo_key
-                key_name="${DeploymentAutomationKeyName}"
-                ssm_pin=/${AWS::StackName}/pinned-ansible-sha
-
-                yum install -y git awscli jq
-
-                if [[ ! -z "$key_name" ]]; then
-                    # Ensure awscli is up to date
-                    key_val=$(aws --region=${AWS::Region} ssm get-parameters --names "$key_name" --with-decryption | jq --raw-output '.Parameters[0].Value')
-                    echo -e "$key_val" > $key_location
-                    chmod 600 $key_location
-                    export GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -i $key_location"
-                else
-                    export GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-                fi
-
-                ### Ansible repo pinning ###
-                pinned_commit_id=$(aws --region=${AWS::Region} ssm get-parameters --names "$ssm_pin" | jq --raw-output '.Parameters[0].Value')
-
-                git clone "${DeploymentAutomationRepository}" -b "${DeploymentAutomationBranch}" /opt/atlassian/dc-deployments-automation/
-                cd /opt/atlassian/dc-deployments-automation/
-
-                if [[ "$pinned_commit_id" == "latest" || -z "$pinned_commit_id" ]]; then
-                  head_id=$(git rev-parse HEAD)
-                  echo "SSM param [$ssm_pin] has been set to 'latest' - Using the HEAD SHA [$head_id] to build cluster [${AWS::StackName}]"
-                  echo "Updating SSM param [$ssm_pin] with current HEAD SHA: [$head_id]"
-                  aws --region=${AWS::Region} ssm put-parameter --name "$ssm_pin" --value "$head_id" --overwrite --type String
-                else
-                  echo "Ansible repo has been pinned, checking out commit: [$pinned_commit_id]"
-                  git checkout -b "pinned-ansible-sha-$pinned_commit_id" "$pinned_commit_id"
-                fi
-              mode: "000750"
-              owner: root
-              group: root
-
-          commands:
-            070_create_atl_dir:
-              test: "test ! -d /opt/atlassian/"
-              command: mkdir -p /opt/atlassian
-              ignoreErrors: false
-            071_install_packages:
-              command: yum install -y git python-virtualenv
-              ignoreErrors: true
-            072_clone_atl_scripts:
-              test: "test ! -d /opt/atlassian/dc-deployments-automation/"
-              command: /opt/atlassian/bin/clone_deployment_repo
-              ignoreErrors: true
-            080_run_atl_init_node:
-              command: !Sub |
-                cd /opt/atlassian/dc-deployments-automation/ && ./bin/install-ansible && ./bin/ansible-with-atl-env inv/aws_node_local ${DeploymentAutomationPlaybook} /var/log/ansible-bootstrap.log
-              ignoreErrors: true
-
-    Properties:
-      AssociatePublicIpAddress: false
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: !Ref ClusterNodeVolumeSize
-        - DeviceName: /dev/xvdf
-          NoDevice: true
-      KeyName: !If
-        - KeyProvided
-        - !Ref KeyPairName
-        - Ref: AWS::NoValue
-      IamInstanceProfile: !Ref JiraClusterNodeInstanceProfile
-      ImageId:
-        !FindInMap
-          - AWSRegionArch2AMI
-          - !Ref AWS::Region
-          - !FindInMap
-              - AWSInstanceType2Arch
-              - !Ref ClusterNodeInstanceType
-              - Arch
-      InstanceType: !Ref ClusterNodeInstanceType
-      SecurityGroups: [!Ref SecurityGroup]
-      UserData:
-        Fn::Base64:
-          !Join
-          - ""
-          -
-            - "#!/bin/bash -xe\n"
-            - "yum update -y aws-cfn-bootstrap\n"
-            - !Sub ["/opt/aws/bin/cfn-init -v --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
-            - !Sub [" --resource ClusterNodeLaunchConfigWithPostgreSQL --region ${Region}\n", {Region: !Ref "AWS::Region"}]
-            - !Sub ["/opt/aws/bin/cfn-signal -e $? --stack ${StackName}", {StackName: !Ref "AWS::StackName"}]
-            - !Sub [" --resource ClusterNodeLaunchConfigWithPostgreSQL --region ${Region}", {Region: !Ref "AWS::Region"}]
-
   ClusterNodeLaunchConfigWithMySQL:
     Type: AWS::AutoScaling::LaunchConfiguration
-    Condition: UseMySQL
     DependsOn:
       - EFSMountAz1
       - EFSMountAz2
@@ -1330,6 +1146,7 @@ Resources:
                     - "ATL_RELEASE_S3_BUCKET=atlassian-software"
                     - "ATL_RELEASE_S3_PATH=releases"
                     - "ATL_SSL_SELF_CERT_ENABLED=false"
+                    - "ATL_DB_ENGINE=rds_mysql"
                     - ""
                     - !Sub ["ATL_PRODUCT_EDITION=${Edition}", Edition: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "editionToInstall"]]
                     - !Sub ["ATL_PRODUCT_VERSION=${ProductVersion}", ProductVersion: !Ref JiraVersion]
@@ -1338,7 +1155,6 @@ Resources:
                     - !If [DoSSL, "ATL_SSL_PROXY=true", !Ref "AWS::NoValue"]
                     - !Sub ["ATL_AWS_STACK_NAME=${StackName}", StackName: !Ref "AWS::StackName"]
                     - !Sub ["ATL_CATALINA_OPTS=\"${CatalinaOpts} ${MailOpts}\"", { CatalinaOpts: !Ref CatalinaOpts, MailOpts: !If [DisableMail, '-Datlassian.mail.senddisabled=true -Datlassian.mail.fetchdisabled=true -Datlassian.mail.popdisabled=true', ''] }]
-                    - !Sub ["ATL_DB_ENGINE=${DBEngine}", DBEngine: !If [DBEngineAurora, aurora_postgres, !If [DBEnginePostgres, rds_postgres, rds_mysql]]]
                     - !Sub ["ATL_DB_HOST=${DBEndpointAddress}", DBEndpointAddress: !GetAtt DB.Outputs.RDSEndPointAddress]
                     - !Sub ["ATL_DB_MAXIDLE=${DBMaxIdle}", DBMaxIdle: !Ref DBMaxIdle]
                     - !Sub ["ATL_DB_MAXWAITMILLIS=${DBMaxWaitMillis}", DBMaxWaitMillis: !Ref DBMaxWaitMillis]
@@ -1549,9 +1365,7 @@ Resources:
       SecurityGroups: [!Ref SecurityGroup]
       SubnetId: !Select
       - 0
-      - !Split
-           - ","
-           - Fn::ImportValue: !Sub "${ExportPrefix}PriNets"
+      - !Ref "PrivateSubnetIds"
   EFSMountAz2:
     Type: AWS::EFS::MountTarget
     Properties:
@@ -1559,9 +1373,7 @@ Resources:
       SecurityGroups: [!Ref SecurityGroup]
       SubnetId: !Select
         - 1
-        - !Split
-          - ","
-          - Fn::ImportValue: !Sub "${ExportPrefix}PriNets"
+        - !Ref "PrivateSubnetIds"
   EFSCname:
     Type: AWS::Route53::RecordSet
     Condition: UseHostedZone
@@ -1577,10 +1389,7 @@ Resources:
   DB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub
-        #- https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-database-for-atlassian-services.yaml
-        - https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-database-for-atlassian-services.yaml
-        - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
+      TemplateURL: !Sub https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-database-for-atlassian-services.yaml
       Parameters:
         DatabaseImplementation: !Ref DBEngine
         DBEngineVersion: !Ref DBEngineVersion
@@ -1620,9 +1429,7 @@ Resources:
           Value: '3600'
       Scheme: !If [UsePublicIp, 'internet-facing', 'internal']
       SecurityGroups: [!Ref SecurityGroup]
-      Subnets: !Split
-        - ","
-        - Fn::ImportValue: !Sub "${ExportPrefix}PubNets"
+      Subnets: !Ref "PublicSubnetIds"
       Tags:
         - Key: Name
           Value: !Sub ["${StackName}-LoadBalancer", StackName: !Ref 'AWS::StackName']
@@ -1713,24 +1520,9 @@ Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group allowing SSH and HTTP/HTTPS access
+      GroupDescription: Security group allowing HTTP/HTTPS access
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: !Ref CidrBlock
-        - !If
-          - UseBastionHost
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp:
-              !Sub
-                - "${BastionIp}/32"
-                - BastionIp:
-                    Fn::ImportValue: !Sub '${ExportPrefix}BastionPrivIp'
-          - Ref: AWS::NoValue
-        - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: !Ref CidrBlock
@@ -1741,35 +1533,12 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp:
-            !Sub
-              - "${NAT1IP}/32"
-              - NAT1IP:
-                  Fn::ImportValue: !Sub '${ExportPrefix}NAT1EIP'
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp:
-            !Sub
-            - "${NAT2IP}/32"
-            - NAT2IP:
-                Fn::ImportValue: !Sub '${ExportPrefix}NAT2EIP'
+          CidrIp: !Ref AccessCIDR
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp:
-            !Sub
-            - "${NAT1IP}/32"
-            - NAT1IP:
-                Fn::ImportValue: !Sub '${ExportPrefix}NAT1EIP'
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp:
-            !Sub
-            - "${NAT2IP}/32"
-            - NAT2IP:
-                Fn::ImportValue: !Sub '${ExportPrefix}NAT2EIP'
+          CidrIp: !Ref AccessCIDR
+            
       Tags:
         - Key: Name
           Value: !Join [' ', [!Ref "AWS::StackName", 'sg']]
@@ -1827,21 +1596,6 @@ Resources:
       AllowedPattern: '^(latest)|([0-9a-f]{5,40})$'
       Value: "latest"
 
-  # Optional: Cloudwatch dashboard to be created when CloudWatch is enabled
-  CloudWatchDashboard:
-    DependsOn:
-      - DB
-    Condition: EnableCloudWatch
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub
-        - https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}submodules/quickstart-atlassian-services/templates/quickstart-cloudwatch-dashboard.yaml
-        - QSS3Region: !If ["GovCloudCondition", "s3-us-gov-west-1", "s3"]
-      Parameters:
-        ProductStackName: !Sub "${AWS::StackName}"
-        ProductFamilyName: !FindInMap [ "JIRAProduct2NameAndVersion", !Ref JiraProduct, "name"]
-        AsgToMonitor: !Ref ClusterNodeGroup
-
 Outputs:
   ServiceURL:
     Description: The URL to access this Atlassian service
@@ -1892,7 +1646,3 @@ Outputs:
     Export: {
       Name: !Join ['', [!Ref 'AWS::StackName', '-EFSCname']]
     }
-  CloudWatchDashboardURL:
-    Description: CloudWatch monitoring dashboard URL
-    Value: !GetAtt CloudWatchDashboard.Outputs.Dashboard
-    Condition: EnableCloudWatch
