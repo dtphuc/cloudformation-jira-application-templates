@@ -33,6 +33,7 @@ The templates below are included in this repository and reference architecture:
 | [templates/quickstart-database-for-atlassian-services.yaml](templates/quickstart-database-for-atlassian-services.yaml) | This template deploys a Amazon Aurora PostgreSQl or RDS PostgreSQl/MySQL based on your condition. |
 | [templates/aurora_postgres.template.yaml](templates/aurora_postgres.template.yaml) | This template deploys Amazon Aurora PostgreSQL. |
 | [templates/quickstart-rds-for-atlassian-services.yaml](templates/quickstart-rds-for-atlassian-services.yaml) | This template deploys a RDS PostgreSQl or MySQL based on your condition. |
+| [templates/jira.template.yaml](templates/aurora_postgres.template.yaml) | This template deploys Jira App into an existing VPC. |
 
 After the CloudFormation templates have been deployed, the [stack outputs](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/outputs-section-structure.html) contain a link to the site URLs.
 
@@ -46,6 +47,10 @@ You can launch this CloudFormation stack in your account:
  - Create an ACM certificate (If you want to use your own certs)
  - Create S3 Bucket to store CFN templates.
 
+    ```sh
+    $ aws s3 mb s3://<YOUR_S3_BUCKET> --profile <YOUR_AWS_PROFILE>
+    ```
+
 2. Need to have [AWS CLI](aws.amazon.com/cli) in your laptop.
 
 3. Upload the files in the "templates" directory into to your own S3 bucket.
@@ -53,17 +58,22 @@ You can launch this CloudFormation stack in your account:
 $ AWS_PROFILE=<YOUR_AWS_PROFILE> BUCKET_NAME=<YOUR_S3_BUCKET> make init
 ```
 
-4. Deploy the stacks
+4. Deploy the whole stacks (include new VPC and Jira DC.)
 ```sh
 $ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make create-stacks
 ```
 
-5. Delete the stacks
+5. Deploy the Jira DC stacks in an existing VPC.
+```sh
+$ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make create-jira-only
+```
+
+6. Delete the stacks
 ```sh
 $ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make delete-stacks
 ```
 
-6. Clean up CFN templates in S3
+7. Clean up CFN templates in S3
 ```sh
 $ AWS_PROFILE=<YOUR_AWS_PROFILE> STACK_NAME=<STACK_NAME> BUCKET_NAME=<YOUR_S3_BUCKET> make clean-up
 ```

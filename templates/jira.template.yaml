@@ -28,7 +28,6 @@ Metadata:
           default: Database
         Parameters:
           - DBEngine
-          - DBEngineVersion
           - DBInstanceClass
           - DBIops
           - DBMasterUserPassword
@@ -40,7 +39,6 @@ Metadata:
       - Label:
           default: Bastion host utilization
         Parameters:
-          - BastionHostRequired
           - KeyPairName
       - Label:
           default: Networking
@@ -79,12 +77,6 @@ Metadata:
           - TomcatMinSpareThreads
           - TomcatProtocol
           - TomcatRedirectPort
-      - Label:
-          default: AWS Quick Start Configuration
-        Parameters:
-          - QSS3BucketName
-          - QSS3KeyPrefix
-          - ExportPrefix
 
       - Label:
           default: CFN template Configuration
@@ -111,8 +103,6 @@ Metadata:
         default: Existing DNS name
       DBEngine:
         default: The database engine to deploy with
-      DBEngineVersion:
-        default: The database engine version to use
       DBInstanceClass:
         default: Database instance class
       DBIops:
@@ -161,8 +151,6 @@ Metadata:
         default: SSH keyname to use with the repository
       DeploymentAutomationCustomParams:
         default: Custom command-line parameters for Ansible
-      ExportPrefix:
-        default: ASI identifier
       HostedZone:
         default: Route 53 Hosted Zone
       InternetFacingLoadBalancer:
@@ -199,10 +187,6 @@ Metadata:
         default: Tomcat Protocol
       TomcatRedirectPort:
         default: Tomcat Redirect Port
-      QSS3BucketName:
-        default: Quick Start S3 Bucket Name
-      QSS3KeyPrefix:
-        default: Quick Start S3 Key Prefix
       CFNS3BucketName:
         default: CFN S3 Bucket Name
       CFNS3KeyPrefix:
@@ -213,6 +197,9 @@ Parameters:
     Default: ''
     Description: Pass in any additional jvm options to tune Catalina
     Type: String
+  VpcId:
+    Type: String
+    Description: VPC ID to launch the stacks.
   CidrBlock:
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
     ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
@@ -351,18 +338,11 @@ Parameters:
     Description: 'Use custom existing DNS name for your Data Center instance. This will take precedence over HostedZone. Please note: you must own the domain and configure it to point at the load balancer.'
     Type: String
   DBEngine:
-    Default: 'MySQL'
+    Default: 'mysql8'
     Description: 'Database Engine to use for the application.'
     AllowedValues:
-      - 'MySQL'
-    ConstraintDescription: Must be 'MySQL'
-    Type: String
-  DBEngineVersion:
-    Default: 8
-    AllowedValues:
-      - 5
-      - 8
-    Description: "The database engine version to use; we'll install a suitable minor version for your chosen engine. Make sure that the Jira version you're installing supports the database engine selected. Check https://confluence.atlassian.com/x/bqr1Nw to verify this."
+      - 'mysql5'
+      - 'mysql8'
     Type: String
   DBInstanceClass:
     Default: db.m5.large
@@ -475,7 +455,7 @@ Parameters:
     Description: Database allocated storage size, in gigabytes (GB). If you choose Provisioned IOPS'
     Type: Number
   DBStorageEncrypted:
-    Default: "false"
+    Default: "true"
     AllowedValues:
       - "true"
       - "false"
@@ -527,11 +507,6 @@ Parameters:
     Default: ""
     Type: String
     Description: Named Key Pair name to use with this repository. The key should be imported into the SSM parameter store. (Optional)
-  ExportPrefix:
-    Default: 'ATL-'
-    Description:
-      Each Atlassian Standard Infrastructure (ASI) uses a unique identifier. If you have multiple ASIs within the same AWS region, use this field to specify where to deploy Jira.
-    Type: String
   HostedZone:
     Default: ''
     ConstraintDescription: Must be the name of an existing Route53 Hosted Zone.
@@ -562,13 +537,6 @@ Parameters:
   JvmHeapOverride:
     Default: ''
     Description: Override the default amount of memory to allocate to the JVM for your instance type - set size in meg or gig e.g. 1024m or 1g
-    Type: String
-  BastionHostRequired:
-    Default: "true"
-    AllowedValues:
-      - "true"
-      - "false"
-    Description: Whether to grant access to Jira EC2 instances through the ASI's Bastion host (if it exists). If 'true', remember to provide an EC2 Key Pair. If your ASI does not have a Bastion host, set this to 'false'.
     Type: String
   KeyPairName:
     ConstraintDescription: Must be the name of an existing EC2 Key Pair.
@@ -629,25 +597,6 @@ Parameters:
     Default: 8443
     Description: The port number for Catalina to use when automatically redirecting a non-SSL connector actioning a redirect to a SSL URI
     Type: Number
-  QSS3BucketName:
-    Default: 'aws-quickstart'
-    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
-    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
-      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
-      (-).
-    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
-      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
-      It cannot start or end with a hyphen (-).
-    Type: String
-  QSS3KeyPrefix:
-    Default: 'quickstart-atlassian-jira/'
-    AllowedPattern: ^[0-9a-zA-Z-/]*$
-    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
-      uppercase letters, hyphens (-), and forward slash (/).
-    Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
-      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
-      forward slash (/).
-    Type: String
   CFNS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: Quick Start bucket name can include numbers, lowercase
@@ -665,6 +614,7 @@ Parameters:
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
+    Default: 'templates'
 
 Conditions:
   DisableMail:
@@ -689,13 +639,9 @@ Conditions:
     !Not [!Equals [!Ref HostedZone, '']]
   UsePublicIp:
     !Equals [!Ref InternetFacingLoadBalancer, 'true']
-  GovCloudCondition:
-    !Equals [!Ref 'AWS::Region', 'us-gov-west-1']
-  UseBastionHost: !And
-    - !Equals [!Ref BastionHostRequired, true]
-    - !Condition KeyProvided
   InstallJSDAsOBR:
     !Equals [!Ref JiraProduct, "All"]
+
 Mappings:
   AWSInstanceType2Arch:
     c4.large:
@@ -1006,6 +952,11 @@ Mappings:
       HVM64: ami-e9a9d388
     us-gov-east-1:
       HVM64: ami-a2d938d3
+
+  EngineMap:
+    MySQL:
+      "mysql5": "mysql-5.7"
+      "mysql8": "mysql-8.0"
 
   JIRAProduct2NameAndVersion:
     Core:
@@ -1382,32 +1333,40 @@ Resources:
       Comment: Route53 cname for the efs
       Name: !If [ UseHostedZone, !Join ['.', [!Ref 'AWS::StackName', 'efs', !Ref 'HostedZone']], '']
       Type: CNAME
-      TTL: '900'
+      TTL: 900
       ResourceRecords:
         - !Join ['.', [!Ref ElasticFileSystem, 'efs', !Ref 'AWS::Region', 'amazonaws.com.']]
   # Database
   DB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-database-for-atlassian-services.yaml
+      TemplateURL: !Sub https://${CFNS3BucketName}.s3.amazonaws.com/${CFNS3KeyPrefix}/quickstart-rds-for-atlassian-services.yaml
       Parameters:
-        DatabaseImplementation: !Ref DBEngine
-        DBEngineVersion: !Ref DBEngineVersion
-        DBSecurityGroup: !Ref SecurityGroup
+        CustomDBSecurityGroup: !Ref SecurityGroup
+        DBEngine: !FindInMap [EngineMap, MySQL, !Ref DBEngine ] 
+        DBAllocatedStorage: !Ref DBStorage
+        DBAllocatedStorageEncrypted: !Ref DBStorageEncrypted
         DBAutoMinorVersionUpgrade: "true"
         DBBackupRetentionPeriod: "1"
         DBInstanceClass: !Ref DBInstanceClass
         DBIops: !Ref DBIops
+        DBMasterUsername: master
         DBMasterUserPassword: !Ref DBMasterUserPassword
         DBMultiAZ: !Ref DBMultiAZ
-        DBAllocatedStorage: !Ref DBStorage
-        DBStorageEncrypted: !Ref DBStorageEncrypted
         DBStorageType: !Ref DBStorageType
-        ExportPrefix: !Ref ExportPrefix
-        QSS3BucketName: !Ref QSS3BucketName
-        QSS3KeyPrefix: !Ref QSS3KeyPrefix
-        CFNS3BucketName: !Ref CFNS3BucketName
-        CFNS3KeyPrefix: !Ref CFNS3KeyPrefix
+        Subnet1ID: !Select
+          - 0
+          - !Ref PrivateSubnetIds
+        Subnet2ID: !Select
+          - 1
+          - !Ref PrivateSubnetIds
+      Tags:
+        # NOTE: The leading COMMIT/TIMESTAMP are used to locate the position to update; see scripts/update-tags.py
+        - Key: "atl:quickstart:commit-id"
+          Value: "COMMIT: 343e943a20f6c3c4ca3cbd289cf903905528b98a"
+        - Key: "atl:quickstart:timestamp"
+          Value: "TIMESTAMP: 2020-07-30T01:36:47Z"
+  
   DBCname:
     Condition: UseHostedZone
     Type: AWS::Route53::RecordSet
@@ -1477,8 +1436,7 @@ Resources:
     Properties:
       Port: !Ref TomcatDefaultConnectorPort
       Protocol: HTTP
-      VpcId:
-        Fn::ImportValue: !Sub "${ExportPrefix}VPCID"
+      VpcId: !Ref VpcId
       HealthCheckIntervalSeconds: 20
       HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
@@ -1514,7 +1472,7 @@ Resources:
       Comment: Route53 cname for the ALB
       Name: !Join ['.', [!Ref "AWS::StackName", !Ref 'HostedZone']]
       Type: CNAME
-      TTL: '900'
+      TTL: 900
       ResourceRecords:
         - !GetAtt LoadBalancer.DNSName
   SecurityGroup:
@@ -1547,8 +1505,7 @@ Resources:
           Value: "COMMIT: 967bce1c42a0ed818fae85170cc73cd53740220f"
         - Key: "atl:quickstart:timestamp"
           Value: "TIMESTAMP: 2020-08-18T11:21:04Z"
-      VpcId:
-        Fn::ImportValue: !Sub "${ExportPrefix}VPCID"
+      VpcId: !Ref VpcId
   SecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:

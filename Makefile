@@ -49,6 +49,7 @@ validate-jira: set-env ## Validate CFN templates
 clean-up: set-env ## Clean up CFN templates in S3
 	@echo "Clean up CFN templates in S3"
 	aws --profile $(AWS_PROFILE) s3 rm s3://$(BUCKET_NAME)/ --recursive --include "quickstart-*.yaml" --include "aurora_postgresql*.yaml"
+	aws --profile $(AWS_PROFILE) s3 rb s3://$(BUCKET_NAME) --force
 
 all: init create-stacks # Create All
 delete-all: delete-stacks clean-up # Delete All
